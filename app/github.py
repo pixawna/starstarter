@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+import asyncio
+import base64
+from typing import Any
+
+import httpx
+
+from app.config import Settings
+from app.email_scraper import GitHubEmailScraperClient
+from app.models import (
+    GitHubRepository,
+    GitHubScrapeResult,
+    GitHubUserProfile,
+    RepositoryIssue,
+)
+
+
+class GitHubClient:
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._email_scraper = GitHubEmailScraperClient(settings)
+
+    def _headers(self) -> dict[str, str]:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "starstarter-webhook",
+        }
+        if self._settings.github_token:
+            headers["Authorization"] = f"Bearer {self._settings.github_token}"
+        return headers
+
+    async def _get_json(self, client: httpx.AsyncClient, path: str, params: dict[str, Any] | None = None) -> Any:
+        response = await client.get(path, params=params)
+        response.raise_for_status()
+        return response.json()
+
+    async def _get_optional_profile_readme(self, client: httpx.AsyncClient, username: str) -> str | None:
+        response = await client.get(f"/repos/{username}/{username}/readme")
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        payload = response.json()
+        content = payload.get("content")
+        if not content:
+            return None
+        try:
+            decoded = base64.b64decode(content).decode("utf-8", errors="ignore")
+        except Exception:
+            return None
+        return decoded[:6000] or None
+
+    async def scrape_user(self, username: str, target_repository_full_name: str) -> GitHubScrapeResult:
+        async with httpx.AsyncClient(
+            base_url=self._settings.github_api_base_url,
+            headers=self._headers(),
+            timeout=self._settings.http_timeout_seconds,
+        ) as client:
+            profile_data, repos_data, issues_data, profile_readme, scraped_email = await asyncio.gather(
+                self._get_json(client, f"/users/{username}"),
+                self._get_json(
+                    client,
+                    f"/users/{username}/repos",
+                    params={"sort": "updated", "per_page": 20, "type": "owner"},
+                ),
+                self._get_json(
+                    client,
+                    f"/repos/{target_repository_full_name}/issues",
+                    params={"state": "open", "per_page": 10},
+                ),
+                self._get_optional_profile_readme(client, username),
+                self._email_scraper.find_email(username),
+            )
+
+        profile = GitHubUserProfile(
+            login=profile_data["login"],
+            name=profile_data.get("name"),
+            bio=profile_data.get("bio"),
+            company=profile_data.get("company"),
+            location=profile_data.get("location"),
+            blog=profile_data.get("blog"),
+            email=profile_data.get("email") or scraped_email,
+            profile_readme=profile_readme,
+            public_repos=profile_data.get("public_repos", 0),
+            followers=profile_data.get("followers", 0),
+            following=profile_data.get("following", 0),
+        )
+
+        repositories = [
+            GitHubRepository(
+                name=repo["name"],
+                full_name=repo["full_name"],
+                description=repo.get("description"),
+                html_url=repo["html_url"],
+                language=repo.get("language"),
+                stargazers_count=repo.get("stargazers_count", 0),
+                forks_count=repo.get("forks_count", 0),
+                topics=repo.get("topics") or [],
+                updated_at=repo.get("updated_at"),
+            )
+            for repo in repos_data
+        ]
+
+        candidate_issues = []
+        for issue in issues_data:
+            if issue.get("pull_request"):
+                continue
+            candidate_issues.append(
+                RepositoryIssue(
+                    title=issue["title"],
+                    html_url=issue["html_url"],
+                    labels=[label["name"] for label in issue.get("labels", [])],
+                    body=issue.get("body"),
+                )
+            )
+
+        return GitHubScrapeResult(
+            profile=profile,
+            repositories=repositories,
+            candidate_issues=candidate_issues,
+        )
