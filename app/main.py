@@ -206,6 +206,10 @@ async def send_email(payload: SendEmailRequest) -> SendEmailResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except smtplib.SMTPException as exc:
+        print("SMTP send failed:", repr(exc))
         raise HTTPException(status_code=502, detail=f"SMTP send failed: {exc}") from exc
+    except OSError as exc:
+        print("SMTP network failure:", repr(exc))
+        raise HTTPException(status_code=502, detail=f"SMTP connection failed: {exc}") from exc
 
     return SendEmailResponse(success=True, to=payload.email, subject=payload.subject)

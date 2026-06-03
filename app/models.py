@@ -12,6 +12,9 @@ class GitHubUserProfile(BaseModel):
     blog: str | None = None
     email: str | None = None
     profile_readme: str | None = None
+    profile_summary: str | None = None
+    inferred_interests: list[str] = Field(default_factory=list)
+    personalization_clues: list[str] = Field(default_factory=list)
     public_repos: int = 0
     followers: int = 0
     following: int = 0
@@ -40,6 +43,7 @@ class GitHubScrapeResult(BaseModel):
     profile: GitHubUserProfile
     repositories: list[GitHubRepository]
     candidate_issues: list[RepositoryIssue]
+    pinned_repositories: list[GitHubRepository] = Field(default_factory=list)
 
 
 class SuperplaneWebhookEnvelope(BaseModel):

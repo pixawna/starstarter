@@ -7,6 +7,7 @@ This project now includes a simple FastAPI webhook service that:
 - accepts the Superplane GitHub webhook payload for `star` events
 - extracts the GitHub username from `data.body.sender.login`
 - fetches the user's public GitHub profile, public email, and repositories
+- scrapes the user's public GitHub profile page and profile README with Scrapy selectors
 - fetches open issues from the starred repository
 - uses OpenRouter to generate a personalized onboarding email
 
@@ -90,6 +91,22 @@ If `OPENROUTER_API_KEY` is not set, the service returns a deterministic fallback
 
 The app first uses the public email returned by the GitHub API. If that is empty, it optionally tries `github-email-scraper` to search publicly visible events and commit metadata for an email associated with the GitHub username.
 
+## Personalized profile scraping
+
+To reduce generic onboarding emails, the app now enriches the GitHub API data with a Scrapy-based profile scraper that reads publicly visible content from:
+
+- `https://github.com/<username>`
+- `https://github.com/<username>/<username>`
+
+It extracts signals like:
+
+- profile/about text
+- pinned repositories
+- rendered profile README sections
+- inferred interests based on the README, bio, repo descriptions, and languages
+
+Those signals are then passed into OpenRouter so the contribution suggestions can better match the user's public interests.
+
 ## Sending email from Superplane
 
 If the Superplane SMTP component rejects dynamic recipient expressions, let Superplane call this backend to send email instead.
@@ -124,4 +141,19 @@ Required SMTP environment variables:
 - `SMTP_USERNAME`
 - `SMTP_PASSWORD`
 - `SMTP_FROM_EMAIL` optional, defaults to `SMTP_USERNAME`
+- `SMTP_FROM_NAME` optional, defaults to `The Superplane community`
 - `SMTP_USE_TLS`
+- `SMTP_USE_SSL`
+
+Recommended values:
+
+- Gmail app password:
+  - `SMTP_HOST=smtp.gmail.com`
+  - `SMTP_PORT=587`
+  - `SMTP_USE_TLS=true`
+  - `SMTP_USE_SSL=false`
+
+- SSL-based providers:
+  - `SMTP_PORT=465`
+  - `SMTP_USE_TLS=false`
+  - `SMTP_USE_SSL=true`

@@ -14,12 +14,14 @@ from app.models import (
     GitHubUserProfile,
     RepositoryIssue,
 )
+from app.scrapy_profile_scraper import ScrapyGitHubProfileScraper
 
 
 class GitHubClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._email_scraper = GitHubEmailScraperClient(settings)
+        self._scrapy_profile_scraper = ScrapyGitHubProfileScraper()
 
     def _headers(self) -> dict[str, str]:
         headers = {
@@ -50,13 +52,24 @@ class GitHubClient:
             return None
         return decoded[:6000] or None
 
+    async def _safe_scrapy_profile_scrape(self, username: str) -> dict[str, object]:
+        try:
+            return await self._scrapy_profile_scraper.scrape(username)
+        except Exception:
+            return {
+                "profile_summary": None,
+                "readme_excerpt": None,
+                "interests": [],
+                "pinned_repositories": [],
+            }
+
     async def scrape_user(self, username: str, target_repository_full_name: str) -> GitHubScrapeResult:
         async with httpx.AsyncClient(
             base_url=self._settings.github_api_base_url,
             headers=self._headers(),
             timeout=self._settings.http_timeout_seconds,
         ) as client:
-            profile_data, repos_data, issues_data, profile_readme, scraped_email = await asyncio.gather(
+            profile_data, repos_data, issues_data, profile_readme, scraped_email, scraped_profile_data = await asyncio.gather(
                 self._get_json(client, f"/users/{username}"),
                 self._get_json(
                     client,
@@ -70,6 +83,7 @@ class GitHubClient:
                 ),
                 self._get_optional_profile_readme(client, username),
                 self._email_scraper.find_email(username),
+                self._safe_scrapy_profile_scrape(username),
             )
 
         profile = GitHubUserProfile(
@@ -80,7 +94,10 @@ class GitHubClient:
             location=profile_data.get("location"),
             blog=profile_data.get("blog"),
             email=profile_data.get("email") or scraped_email,
-            profile_readme=profile_readme,
+            profile_readme=profile_readme or scraped_profile_data.get("readme_excerpt"),
+            profile_summary=scraped_profile_data.get("profile_summary"),
+            inferred_interests=list(scraped_profile_data.get("interests") or []),
+            personalization_clues=list(scraped_profile_data.get("personalization_clues") or []),
             public_repos=profile_data.get("public_repos", 0),
             followers=profile_data.get("followers", 0),
             following=profile_data.get("following", 0),
@@ -118,4 +135,19 @@ class GitHubClient:
             profile=profile,
             repositories=repositories,
             candidate_issues=candidate_issues,
+            pinned_repositories=[
+                GitHubRepository(
+                    name=repo["name"],
+                    full_name=repo["full_name"],
+                    description=repo.get("description"),
+                    html_url=repo["html_url"],
+                    language=repo.get("language"),
+                    stargazers_count=0,
+                    forks_count=0,
+                    topics=[],
+                    updated_at=None,
+                )
+                for repo in scraped_profile_data.get("pinned_repositories", [])
+                if repo.get("name") and repo.get("full_name") and repo.get("html_url")
+            ],
         )
