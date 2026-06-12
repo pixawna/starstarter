@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+# This module defines all the data models used across the application. These models represent the structured data for GitHub user profiles, repositories, issues, and the payloads for webhooks and email sending. By using Pydantic's BaseModel, we ensure that the data is validated and structured consistently throughout the application, making it easier to work with and reducing the likelihood of errors when processing data from GitHub or handling webhook events.
 
 class GitHubUserProfile(BaseModel):
     login: str

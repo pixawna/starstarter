@@ -3,6 +3,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# This module defines the Settings class, which centralizes all configuration for the application. It uses Pydantic's BaseSettings to allow for easy loading of configuration from environment variables or a .env file. The get_settings function is decorated with lru_cache to ensure that the Settings instance is created only once and reused throughout the application, providing efficient access to configuration values wherever needed.
 
 class Settings(BaseSettings):
     github_api_base_url: str = "https://api.github.com"

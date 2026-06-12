@@ -8,7 +8,7 @@ from email.message import EmailMessage
 
 from app.config import Settings
 
-
+# This module is responsible for sending emails to developers. It constructs the email message, handles both plain text and HTML content, and manages the SMTP connection using the configuration provided in the Settings. It also includes error handling to ensure that all necessary SMTP settings are present and that the recipient email address is valid before attempting to send the email.   
 class Mailer:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings

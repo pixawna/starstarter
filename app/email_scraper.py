@@ -8,6 +8,7 @@ from app.config import Settings
 
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
+# This component is responsible for finding the email address of a GitHub user by invoking an external command-line tool called "github-email-scraper". It constructs the command with the appropriate arguments, including authentication if available, and executes it asynchronously. The output is then parsed to extract email addresses, filtering out any "noreply" addresses. The first valid email found is returned, or None if no email could be extracted or if the command fails to execute properly.
 
 class GitHubEmailScraperClient:
     def __init__(self, settings: Settings) -> None:

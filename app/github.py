@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.scrapy_profile_scraper import ScrapyGitHubProfileScraper
 
+# This module is responsible for interacting with the GitHub API to fetch user profiles, repositories, and issues. It also integrates with the GitHubEmailScraperClient and ScrapyGitHubProfileScraper to enrich the data it collects from GitHub.
 
 class GitHubClient:
     def __init__(self, settings: Settings) -> None:

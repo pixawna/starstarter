@@ -22,6 +22,7 @@ from app.models import (
 
 app = FastAPI(title="StarStarter Webhook Service")
 
+# It exposes the FastAPI endpoints that SuperPlane communicates with. Whenever SuperPlane forwards a GitHub event, this is where the backend receives the request and starts the processing pipeline.
 
 def _try_parse_json_string(value: Any) -> Any:
     if not isinstance(value, str):

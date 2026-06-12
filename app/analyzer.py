@@ -11,6 +11,7 @@ import httpx
 from app.config import Settings
 from app.models import GitHubRepository, GitHubScrapeResult
 
+# This acts as the intelligence layer. It combines all the collected information and builds a structured understanding of the developer before passing it to the LLM.
 
 class OnboardingEmailGenerator:
     def __init__(self, settings: Settings) -> None:

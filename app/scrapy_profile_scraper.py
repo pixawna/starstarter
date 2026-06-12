@@ -7,6 +7,7 @@ from collections import Counter
 import httpx
 from scrapy import Selector
 
+# So this component analyzes the developer's public GitHub repositories. It scrapes the profile page and the optional profile README to extract information about the developer's interests, skills, and projects. This is done using the Scrapy library to parse the HTML content of the GitHub pages. The extracted information is then used to generate a profile summary, infer interests, and identify personalization clues that can be used in onboarding emails or other communications.
 
 _INTEREST_KEYWORDS = {
     "frontend": ("frontend", "ui", "ux", "react", "next.js", "javascript", "typescript", "css", "tailwind"),
