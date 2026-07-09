@@ -2,7 +2,9 @@
 
 Star this repo to get a personalized contributor starter path.
 
-This project now includes a simple FastAPI webhook service that:
+Understand StarStarter Architecture here : https://canva.link/ipkgj5pckpkhhb7
+
+This project includes a simple FastAPI webhook service that:
 
 - accepts the Superplane GitHub webhook payload for `star` events
 - extracts the GitHub username from `data.body.sender.login`
