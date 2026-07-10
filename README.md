@@ -1,36 +1,12 @@
-# StarStarter
-
-StarStarter is a demo project that turns a GitHub star into a personalized contributor onboarding email.
+![StarStarter front page](assets/front_page.png)
 
 When someone stars the target repository, GitHub sends a webhook into Superplane. Superplane forwards the event to this FastAPI service, which reads the stargazer's public GitHub profile, looks for contribution signals, asks OpenRouter to generate a tailored starter path, and optionally sends the result by email.
 
 The goal is simple: make a new open-source contributor feel seen, welcomed, and pointed toward a useful first contribution.
 
-## Demo
-
-Demo video:
-
 [Watch the StarStarter demo](assets/StarStarter_Demo.mp4)
 
-Front page:
-
-![StarStarter front page](assets/front_page.png)
-
-Superplane workflow canvas:
-
-![Superplane workflow canvas](assets/superplane_canvas.png)
-
-Backend logic:
-
-![StarStarter backend logic](assets/backend_logic.png)
-
-Architecture:
-
-![StarStarter architecture](assets/architecture.png)
-
-You can also view the architecture walkthrough here:
-
-https://canva.link/ipkgj5pckpkhhb7
+You can also view the inspiration for the StarStarter here: https://canva.link/ipkgj5pckpkhhb7
 
 ## What It Does
 
@@ -51,6 +27,8 @@ If OpenRouter is not configured, the app still returns a deterministic fallback 
 
 ## How The Flow Works
 
+![StarStarter architecture](assets/architecture.png)
+
 1. A developer stars the target GitHub repository.
 2. GitHub sends a webhook to the public ngrok URL.
 3. The gateway routes the GitHub webhook to Superplane.
@@ -60,6 +38,7 @@ If OpenRouter is not configured, the app still returns a deterministic fallback 
 7. The email generator creates a personalized onboarding email.
 8. Superplane can either use the generated payload directly or call `/send-email`.
 9. The contributor receives a welcome email with suggested first steps.
+
 
 ## Project Structure
 
