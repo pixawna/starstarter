@@ -6,9 +6,11 @@ When someone stars the target repository, GitHub sends a webhook into Superplane
 
 The goal is simple: make a new open-source contributor feel seen, welcomed, and pointed toward a useful first contribution.
 
+![StarStarter working demo](assets/StarStarter_Demo.gif)
+
 ## Demo
 
-Demo video:
+Full demo video:
 
 [Watch the StarStarter demo](assets/StarStarter_Demo.mp4)
 
