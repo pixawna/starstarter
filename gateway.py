@@ -62,6 +62,11 @@ async def proxy_fastapi_webhooks(path: str, request: Request) -> Response:
     return await _proxy(request, FASTAPI_BASE)
 
 
+@app.api_route("/send-email", methods=["POST", "OPTIONS"])
+async def proxy_fastapi_send_email(request: Request) -> Response:
+    return await _proxy(request, FASTAPI_BASE)
+
+
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def proxy_superplane_ui(path: str, request: Request) -> Response:
     del path

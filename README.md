@@ -51,7 +51,7 @@ Then use the single public ngrok URL like this:
 The gateway forwards:
 
 - `/api/v1/*` and the rest of the UI to Superplane on port `3000`
-- `/webhooks/*` to this FastAPI app on port `8011`
+- `/webhooks/*` and `/send-email` to this FastAPI app on port `8011`
 
 ## Webhook endpoint
 
@@ -146,6 +146,9 @@ Required SMTP environment variables:
 - `SMTP_FROM_NAME` optional, defaults to `The Superplane community`
 - `SMTP_USE_TLS`
 - `SMTP_USE_SSL`
+
+If GitHub does not expose a public email for the user, `/send-email` returns
+`success: false` with `skipped: true` instead of failing the workflow.
 
 Recommended values:
 

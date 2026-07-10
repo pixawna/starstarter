@@ -199,11 +199,21 @@ async def process_superplane_style_webhook(webhook_id: str, request: Request) ->
 
 @app.post("/send-email", response_model=SendEmailResponse)
 async def send_email(payload: SendEmailRequest) -> SendEmailResponse:
+    recipient = payload.email.strip() if payload.email else None
+    if not recipient or recipient.lower() in {"null", "none", "undefined"}:
+        return SendEmailResponse(
+            success=False,
+            to=None,
+            subject=payload.subject,
+            skipped=True,
+            detail="No public recipient email was found for this GitHub user.",
+        )
+
     settings = get_settings()
     mailer = Mailer(settings)
 
     try:
-        mailer.send(to_email=payload.email, subject=payload.subject, body=payload.body)
+        mailer.send(to_email=recipient, subject=payload.subject, body=payload.body)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except smtplib.SMTPException as exc:
@@ -213,4 +223,4 @@ async def send_email(payload: SendEmailRequest) -> SendEmailResponse:
         print("SMTP network failure:", repr(exc))
         raise HTTPException(status_code=502, detail=f"SMTP connection failed: {exc}") from exc
 
-    return SendEmailResponse(success=True, to=payload.email, subject=payload.subject)
+    return SendEmailResponse(success=True, to=recipient, subject=payload.subject)

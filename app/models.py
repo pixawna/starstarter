@@ -60,12 +60,14 @@ class WebhookProcessingResponse(BaseModel):
 
 
 class SendEmailRequest(BaseModel):
-    email: str
+    email: str | None = None
     subject: str
     body: str
 
 
 class SendEmailResponse(BaseModel):
     success: bool
-    to: str
+    to: str | None = None
     subject: str
+    skipped: bool = False
+    detail: str | None = None
