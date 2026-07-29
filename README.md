@@ -185,7 +185,21 @@ Successful response:
 {
   "email": "developer@example.com",
   "subject": "Welcome to Superplane, ConnectBhawna",
-  "body": "<html>...</html>"
+  "body": "<html>...</html>",
+  "email_send_skipped": false,
+  "detail": null
+}
+```
+
+If the GitHub user does not expose a public email, the webhook still returns a generated onboarding body and marks email delivery as skipped:
+
+```json
+{
+  "email": null,
+  "subject": "Welcome to Superplane, username",
+  "body": "<html>...</html>",
+  "email_send_skipped": true,
+  "detail": "No public recipient email was found for this GitHub user."
 }
 ```
 
@@ -209,7 +223,7 @@ Send JSON:
 }
 ```
 
-If GitHub does not expose a public email for the user, `/send-email` returns `success: false` with `skipped: true` instead of failing the workflow.
+If GitHub does not expose a public email for the user, or if the recipient expression reaches the backend unresolved, `/send-email` returns `success: false` with `skipped: true` instead of failing the workflow.
 
 Example skipped response:
 
@@ -219,7 +233,7 @@ Example skipped response:
   "to": null,
   "subject": "Welcome to Superplane, username",
   "skipped": true,
-  "detail": "No public recipient email was found for this GitHub user."
+  "detail": "No public recipient email was found, or the recipient expression did not resolve."
 }
 ```
 
@@ -250,9 +264,13 @@ Recommended Gmail app password values:
 ```text
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
+SMTP_USERNAME=your-gmail-address@gmail.com
+SMTP_PASSWORD=your-google-app-password
 SMTP_USE_TLS=true
 SMTP_USE_SSL=false
 ```
+
+For Gmail, `SMTP_PASSWORD` should be an app password, not your normal Google account password.
 
 Recommended SSL-based provider values:
 
@@ -291,6 +309,10 @@ Those signals are passed into OpenRouter. If OpenRouter fails or is not configur
 `POST /webhooks/github/star` returns `200`, but `POST /send-email` is skipped:
 
 The GitHub user probably does not have a public email. This is expected for many profiles.
+
+`POST /webhooks/github/star` returns `email: null`:
+
+This means the onboarding body was generated, but no public recipient email was found. Configure `GITHUB_TOKEN` and `GITHUB_AUTH_USERNAME` in `.env` to improve GitHub API limits and optional public email discovery. Some GitHub users still will not have a discoverable email.
 
 `POST /send-email` returns `400`:
 

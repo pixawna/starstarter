@@ -57,6 +57,8 @@ class WebhookProcessingResponse(BaseModel):
     email: str | None = None
     subject: str | None = None
     body: str | None = None
+    email_send_skipped: bool = False
+    detail: str | None = None
 
 
 class SendEmailRequest(BaseModel):

@@ -70,7 +70,7 @@ class GitHubClient:
             headers=self._headers(),
             timeout=self._settings.http_timeout_seconds,
         ) as client:
-            profile_data, repos_data, issues_data, profile_readme, scraped_email, scraped_profile_data = await asyncio.gather(
+            results = await asyncio.gather(
                 self._get_json(client, f"/users/{username}"),
                 self._get_json(
                     client,
@@ -85,10 +85,24 @@ class GitHubClient:
                 self._get_optional_profile_readme(client, username),
                 self._email_scraper.find_email(username),
                 self._safe_scrapy_profile_scrape(username),
+                return_exceptions=True,
             )
 
+        profile_data = results[0] if isinstance(results[0], dict) else {"login": username}
+        repos_data = results[1] if isinstance(results[1], list) else []
+        issues_data = results[2] if isinstance(results[2], list) else []
+        profile_readme = results[3] if isinstance(results[3], str) else None
+        scraped_email = results[4] if isinstance(results[4], str) else None
+        scraped_profile_data = results[5] if isinstance(results[5], dict) else {
+            "profile_summary": None,
+            "readme_excerpt": None,
+            "interests": [],
+            "personalization_clues": [],
+            "pinned_repositories": [],
+        }
+
         profile = GitHubUserProfile(
-            login=profile_data["login"],
+            login=str(profile_data.get("login") or username),
             name=profile_data.get("name"),
             bio=profile_data.get("bio"),
             company=profile_data.get("company"),

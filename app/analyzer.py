@@ -27,6 +27,9 @@ class OnboardingEmailGenerator:
             llm_payload = self._fallback_payload(scrape_result)
         return self._render_html_email(scrape_result, llm_payload)
 
+    def generate_fallback_email(self, scrape_result: GitHubScrapeResult) -> str:
+        return self._render_html_email(scrape_result, self._fallback_payload(scrape_result))
+
     async def _generate_llm_payload(
         self,
         scrape_result: GitHubScrapeResult,

@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
+from pydantic import ValidationError
 
 from app.analyzer import OnboardingEmailGenerator
 from app.config import get_settings
@@ -75,6 +76,47 @@ def _extract_github_body(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _extract_send_email_body(payload: dict[str, Any]) -> dict[str, Any]:
+    payload = _normalize_payload(payload)
+    if {"email", "subject", "body"} & payload.keys():
+        return payload
+
+    data = payload.get("data")
+    if isinstance(data, dict):
+        body = _try_parse_json_string(data.get("body"))
+        if isinstance(body, dict):
+            return _extract_send_email_body(body)
+
+    for key in ("json", "payload", "body"):
+        candidate = _try_parse_json_string(payload.get(key))
+        if isinstance(candidate, dict):
+            return _extract_send_email_body(candidate)
+
+    return payload
+
+
+def _is_missing_or_unresolved_recipient(recipient: str | None) -> bool:
+    if recipient is None:
+        return True
+    value = recipient.strip()
+    if not value:
+        return True
+    if value.lower() in {"null", "none", "undefined"}:
+        return True
+    return "{{" in value or "}}" in value
+
+
+def _missing_smtp_settings(settings: Any) -> list[str]:
+    missing = []
+    if not settings.smtp_host:
+        missing.append("SMTP_HOST")
+    if not settings.smtp_username:
+        missing.append("SMTP_USERNAME")
+    if not settings.smtp_password:
+        missing.append("SMTP_PASSWORD")
+    return missing
+
+
 @app.get("/health")
 async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
@@ -103,6 +145,8 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
             email=None,
             subject=None,
             body=None,
+            email_send_skipped=True,
+            detail=f"Ignored GitHub star action `{action}` because only `created` events are processed.",
         )
 
     github_client = GitHubClient(settings)
@@ -118,7 +162,7 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
             repositories=[],
             candidate_issues=[],
         )
-        generated_email = email_generator._fallback_email(scrape_result)
+        generated_email = email_generator.generate_fallback_email(scrape_result)
     except httpx.HTTPError as exc:
         print("Network error while processing webhook:", repr(exc))
         scrape_result = GitHubScrapeResult(
@@ -126,7 +170,7 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
             repositories=[],
             candidate_issues=[],
         )
-        generated_email = email_generator._fallback_email(scrape_result)
+        generated_email = email_generator.generate_fallback_email(scrape_result)
     except Exception as exc:
         print("Unexpected webhook processing error:", repr(exc))
         scrape_result = GitHubScrapeResult(
@@ -134,7 +178,7 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
             repositories=[],
             candidate_issues=[],
         )
-        generated_email = email_generator._fallback_email(scrape_result)
+        generated_email = email_generator.generate_fallback_email(scrape_result)
 
     email = scrape_result.profile.email
     subject = email_generator.generate_subject(github_username)
@@ -144,6 +188,8 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
         email=email,
         subject=subject,
         body=body_content,
+        email_send_skipped=email is None,
+        detail=None if email else "No public recipient email was found for this GitHub user.",
     )
 
 
@@ -198,18 +244,36 @@ async def process_superplane_style_webhook(webhook_id: str, request: Request) ->
 
 
 @app.post("/send-email", response_model=SendEmailResponse)
-async def send_email(payload: SendEmailRequest) -> SendEmailResponse:
+async def send_email(request: Request) -> SendEmailResponse:
+    raw_payload = await _read_request_payload(request)
+    try:
+        payload = SendEmailRequest.model_validate(_extract_send_email_body(raw_payload))
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid send-email payload. Expected JSON with `email`, `subject`, and `body`: {exc.errors()}",
+        ) from exc
+
     recipient = payload.email.strip() if payload.email else None
-    if not recipient or recipient.lower() in {"null", "none", "undefined"}:
+    if _is_missing_or_unresolved_recipient(recipient):
         return SendEmailResponse(
             success=False,
             to=None,
             subject=payload.subject,
             skipped=True,
-            detail="No public recipient email was found for this GitHub user.",
+            detail="No public recipient email was found, or the recipient expression did not resolve.",
         )
+    if "@" not in recipient:
+        raise HTTPException(status_code=400, detail=f"Recipient email is invalid: {recipient}")
 
     settings = get_settings()
+    missing_settings = _missing_smtp_settings(settings)
+    if missing_settings:
+        raise HTTPException(
+            status_code=400,
+            detail=f"SMTP is not configured. Missing: {', '.join(missing_settings)}.",
+        )
+
     mailer = Mailer(settings)
 
     try:
