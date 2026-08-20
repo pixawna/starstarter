@@ -82,6 +82,7 @@ class OnboardingEmailGenerator:
 
     def _build_prompt(self, scrape_result: GitHubScrapeResult, repository_full_name: str) -> str:
         profile = scrape_result.profile
+        analysis = scrape_result.analysis
         repo_lines = []
         for repo in scrape_result.repositories[:8]:
             repo_lines.append(
@@ -120,6 +121,18 @@ class OnboardingEmailGenerator:
             - followers: {profile.followers}
             - following: {profile.following}
             - public repos: {profile.public_repos}
+
+            Structured analysis:
+            - primary languages: {', '.join(analysis.primary_languages) or 'n/a'}
+            - language distribution: {json.dumps(analysis.language_distribution)}
+            - top topics: {', '.join(analysis.top_topics) or 'n/a'}
+            - project types: {', '.join(analysis.project_types) or 'n/a'}
+            - profile strengths: {json.dumps(analysis.profile_strengths)}
+            - contribution fit: {json.dumps(analysis.contribution_fit)}
+            - notable repositories: {', '.join(analysis.notable_repositories) or 'n/a'}
+            - activity summary: {analysis.activity_summary or 'n/a'}
+            - evidence: {json.dumps(analysis.evidence)}
+            - data quality: {analysis.data_quality}
 
             Public repositories:
             {chr(10).join(repo_lines) if repo_lines else '- none found'}
@@ -172,6 +185,15 @@ class OnboardingEmailGenerator:
         if len(clues) == 1:
             return f"I noticed your public GitHub presence highlights {clues[0]}, so I tailored the ideas below in that direction."
 
+        analysis = scrape_result.analysis
+        if analysis.project_types and analysis.primary_languages:
+            return (
+                f"Your public repositories point toward {analysis.project_types[0]} work, with visible use of "
+                f"{', '.join(analysis.primary_languages[:2])}, so I tailored these ideas around practical contribution paths."
+            )
+        if analysis.profile_strengths:
+            return f"Your public GitHub profile suggests {analysis.profile_strengths[0].lower()}, so I tailored the ideas below around that signal."
+
         top_language = self._pick_top_language(scrape_result)
         if top_language:
             return (
@@ -193,6 +215,9 @@ class OnboardingEmailGenerator:
                 clues.append(self._normalize_clue(repo.description))
             elif repo.name:
                 clues.append(self._normalize_clue(repo.name.replace("-", " ")))
+
+        for strength in scrape_result.analysis.profile_strengths[:2]:
+            clues.append(self._normalize_clue(strength))
 
         clean = []
         seen: set[str] = set()
@@ -230,6 +255,11 @@ class OnboardingEmailGenerator:
                     profile.profile_readme,
                     " ".join(profile.inferred_interests),
                     " ".join(profile.personalization_clues),
+                    " ".join(scrape_result.analysis.primary_languages),
+                    " ".join(scrape_result.analysis.top_topics),
+                    " ".join(scrape_result.analysis.project_types),
+                    " ".join(scrape_result.analysis.profile_strengths),
+                    " ".join(scrape_result.analysis.contribution_fit),
                     " ".join(repo_bits),
                 ],
             )
@@ -238,6 +268,12 @@ class OnboardingEmailGenerator:
     def _frontend_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
         corpus = self._interest_corpus(scrape_result)
         top_language = (self._pick_top_language(scrape_result) or "").lower()
+        if any("frontend" in fit.lower() or "ui" in fit.lower() for fit in scrape_result.analysis.contribution_fit):
+            return [
+                "Improve workflow UI states around runs and approvals",
+                "Polish contributor-facing screens with clearer defaults",
+                "Tighten reusable frontend components for workflow setup",
+            ]
         if any(keyword in corpus for keyword in ("design", "ui", "ux", "frontend", "react", "next.js", "component")):
             return [
                 "Refine dashboard flows with clearer interaction states",
@@ -264,6 +300,12 @@ class OnboardingEmailGenerator:
 
     def _docs_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
         corpus = self._interest_corpus(scrape_result)
+        if any("documentation" in fit.lower() or "examples" in fit.lower() for fit in scrape_result.analysis.contribution_fit):
+            return [
+                "Add focused examples for real workflow automation scenarios",
+                "Improve first-run docs with clearer environment setup",
+                "Document small contribution paths by skill area",
+            ]
         if any(keyword in corpus for keyword in ("documentation", "docs", "guide", "tutorial", "community", "teaching", "learning", "mentoring")):
             return [
                 "Add clearer setup walkthroughs with annotated screenshots",
@@ -284,6 +326,12 @@ class OnboardingEmailGenerator:
 
     def _beginner_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
         corpus = self._interest_corpus(scrape_result)
+        if scrape_result.analysis.contribution_fit:
+            return [
+                f"Start with {scrape_result.analysis.contribution_fit[0].lower()}",
+                "Pick a contained issue with a clear before-and-after",
+                "Use docs or tests to validate the first change",
+            ]
         if any(keyword in corpus for keyword in ("automation", "workflow", "bot", "scraping", "agent", "integration")):
             return [
                 "Improve workflow labels, helper text, and run-state messaging",
@@ -310,6 +358,12 @@ class OnboardingEmailGenerator:
 
     def _starter_path(self, scrape_result: GitHubScrapeResult) -> str:
         corpus = self._interest_corpus(scrape_result)
+        analysis = scrape_result.analysis
+        if analysis.contribution_fit and analysis.notable_repositories:
+            return (
+                f"Start by mapping your experience from {analysis.notable_repositories[0]} to "
+                f"{analysis.contribution_fit[0].lower()}, then pick a small issue with visible user impact."
+            )
         if any(keyword in corpus for keyword in ("documentation", "guide", "tutorial", "teaching")):
             return "Start by reading the docs, run a sample workflow, then pick a docs or onboarding issue before moving into code."
         if any(keyword in corpus for keyword in ("automation", "workflow", "bot", "agent")):

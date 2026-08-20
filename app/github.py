@@ -14,6 +14,7 @@ from app.models import (
     GitHubUserProfile,
     RepositoryIssue,
 )
+from app.profile_analysis import analyze_github_profile
 from app.scrapy_profile_scraper import ScrapyGitHubProfileScraper
 
 # This module is responsible for interacting with the GitHub API to fetch user profiles, repositories, and issues. It also integrates with the GitHubEmailScraperClient and ScrapyGitHubProfileScraper to enrich the data it collects from GitHub.
@@ -75,7 +76,7 @@ class GitHubClient:
                 self._get_json(
                     client,
                     f"/users/{username}/repos",
-                    params={"sort": "updated", "per_page": 20, "type": "owner"},
+                    params={"sort": "updated", "per_page": 50, "type": "owner"},
                 ),
                 self._get_json(
                     client,
@@ -124,9 +125,12 @@ class GitHubClient:
                 full_name=repo["full_name"],
                 description=repo.get("description"),
                 html_url=repo["html_url"],
+                homepage=repo.get("homepage"),
                 language=repo.get("language"),
                 stargazers_count=repo.get("stargazers_count", 0),
                 forks_count=repo.get("forks_count", 0),
+                is_fork=repo.get("fork", False),
+                archived=repo.get("archived", False),
                 topics=repo.get("topics") or [],
                 updated_at=repo.get("updated_at"),
             )
@@ -146,23 +150,33 @@ class GitHubClient:
                 )
             )
 
+        pinned_repositories = [
+            GitHubRepository(
+                name=repo["name"],
+                full_name=repo["full_name"],
+                description=repo.get("description"),
+                html_url=repo["html_url"],
+                homepage=None,
+                language=repo.get("language"),
+                stargazers_count=0,
+                forks_count=0,
+                is_fork=False,
+                archived=False,
+                topics=[],
+                updated_at=None,
+            )
+            for repo in scraped_profile_data.get("pinned_repositories", [])
+            if repo.get("name") and repo.get("full_name") and repo.get("html_url")
+        ]
+
         return GitHubScrapeResult(
             profile=profile,
             repositories=repositories,
             candidate_issues=candidate_issues,
-            pinned_repositories=[
-                GitHubRepository(
-                    name=repo["name"],
-                    full_name=repo["full_name"],
-                    description=repo.get("description"),
-                    html_url=repo["html_url"],
-                    language=repo.get("language"),
-                    stargazers_count=0,
-                    forks_count=0,
-                    topics=[],
-                    updated_at=None,
-                )
-                for repo in scraped_profile_data.get("pinned_repositories", [])
-                if repo.get("name") and repo.get("full_name") and repo.get("html_url")
-            ],
+            pinned_repositories=pinned_repositories,
+            analysis=analyze_github_profile(
+                profile=profile,
+                repositories=repositories,
+                pinned_repositories=pinned_repositories,
+            ),
         )

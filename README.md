@@ -19,6 +19,7 @@ The service:
 - extracts the stargazer username and repository name
 - fetches the user's public GitHub profile, repositories, pinned projects, and public email if available
 - scrapes the user's public profile page and profile README with Scrapy selectors
+- analyzes public repositories for languages, topics, project types, strengths, and contribution-fit signals
 - fetches open issues from the starred repository
 - uses OpenRouter to generate a personalized contributor email
 - returns the generated email payload to Superplane
@@ -186,6 +187,21 @@ Successful response:
   "email": "developer@example.com",
   "subject": "Welcome to Superplane, ConnectBhawna",
   "body": "<html>...</html>",
+  "analysis": {
+    "primary_languages": ["TypeScript", "Python"],
+    "language_distribution": {
+      "TypeScript": 6,
+      "Python": 3
+    },
+    "top_topics": ["react", "workflow", "automation"],
+    "project_types": ["frontend/ui", "workflow automation"],
+    "profile_strengths": ["Works across TypeScript, Python"],
+    "contribution_fit": ["Frontend workflow UI and contributor experience"],
+    "notable_repositories": ["ConnectBhawna/starstarter"],
+    "evidence": ["Common repo topics: react, workflow, automation"],
+    "activity_summary": "Public repository activity appears active within the last six months",
+    "data_quality": "moderate"
+  },
   "email_send_skipped": false,
   "detail": null
 }
@@ -286,7 +302,8 @@ The app first uses structured GitHub API data:
 
 - profile name, bio, company, location, blog, followers, and public repo count
 - public email, if available
-- recently updated repositories
+- recently updated repositories, currently up to 50 owner repositories
+- repository language, topics, stars, forks, homepage, fork/archive state, and update timestamps
 - open issues from the starred repository
 
 It then enriches that data by scraping public GitHub pages:
@@ -302,7 +319,9 @@ The scraper looks for:
 - inferred interests from bio, README text, repo descriptions, and languages
 - personalization clues that can make the generated email feel specific
 
-Those signals are passed into OpenRouter. If OpenRouter fails or is not configured, StarStarter falls back to a deterministic template.
+Those signals are converted into a structured `analysis` object with primary languages, language distribution, recurring topics, project types, profile strengths, contribution-fit suggestions, notable repositories, evidence, activity summary, and data quality.
+
+That structured analysis is passed into OpenRouter and is also used by the deterministic fallback template. If OpenRouter fails or is not configured, StarStarter still uses the profile analysis to produce a more relevant email.
 
 ## Troubleshooting
 

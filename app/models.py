@@ -26,9 +26,12 @@ class GitHubRepository(BaseModel):
     full_name: str
     description: str | None = None
     html_url: str
+    homepage: str | None = None
     language: str | None = None
     stargazers_count: int = 0
     forks_count: int = 0
+    is_fork: bool = False
+    archived: bool = False
     topics: list[str] = Field(default_factory=list)
     updated_at: str | None = None
 
@@ -40,11 +43,25 @@ class RepositoryIssue(BaseModel):
     body: str | None = None
 
 
+class GitHubProfileAnalysis(BaseModel):
+    primary_languages: list[str] = Field(default_factory=list)
+    language_distribution: dict[str, int] = Field(default_factory=dict)
+    top_topics: list[str] = Field(default_factory=list)
+    project_types: list[str] = Field(default_factory=list)
+    profile_strengths: list[str] = Field(default_factory=list)
+    contribution_fit: list[str] = Field(default_factory=list)
+    notable_repositories: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    activity_summary: str | None = None
+    data_quality: str = "limited"
+
+
 class GitHubScrapeResult(BaseModel):
     profile: GitHubUserProfile
     repositories: list[GitHubRepository]
     candidate_issues: list[RepositoryIssue]
     pinned_repositories: list[GitHubRepository] = Field(default_factory=list)
+    analysis: GitHubProfileAnalysis = Field(default_factory=GitHubProfileAnalysis)
 
 
 class SuperplaneWebhookEnvelope(BaseModel):
@@ -57,6 +74,7 @@ class WebhookProcessingResponse(BaseModel):
     email: str | None = None
     subject: str | None = None
     body: str | None = None
+    analysis: GitHubProfileAnalysis | None = None
     email_send_skipped: bool = False
     detail: str | None = None
 
