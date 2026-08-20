@@ -190,6 +190,7 @@ async def _handle_star_webhook(payload: dict[str, Any]) -> WebhookProcessingResp
         subject=subject,
         body=body_content,
         analysis=scrape_result.analysis,
+        recommended_issues=scrape_result.candidate_issues,
         email_send_skipped=email is None,
         detail=None if email else "No public recipient email was found for this GitHub user.",
     )

@@ -185,7 +185,7 @@ Successful response:
 ```json
 {
   "email": "developer@example.com",
-  "subject": "Welcome to Superplane, ConnectBhawna",
+  "subject": "Superplane issues matched to your skills, ConnectBhawna",
   "body": "<html>...</html>",
   "analysis": {
     "primary_languages": ["TypeScript", "Python"],
@@ -202,6 +202,17 @@ Successful response:
     "activity_summary": "Public repository activity appears active within the last six months",
     "data_quality": "moderate"
   },
+  "recommended_issues": [
+    {
+      "number": 123,
+      "title": "Improve workflow form validation",
+      "html_url": "https://github.com/superplanehq/superplane/issues/123",
+      "labels": ["area: web", "good first issue"],
+      "fit_score": 78,
+      "fit_reasons": ["Matches your frontend/UI experience", "Marked as a good first issue"],
+      "matched_skills": ["frontend/UI"]
+    }
+  ],
   "email_send_skipped": false,
   "detail": null
 }
@@ -212,7 +223,7 @@ If the GitHub user does not expose a public email, the webhook still returns a g
 ```json
 {
   "email": null,
-  "subject": "Welcome to Superplane, username",
+  "subject": "Superplane issues matched to your skills, username",
   "body": "<html>...</html>",
   "email_send_skipped": true,
   "detail": "No public recipient email was found for this GitHub user."
@@ -247,7 +258,7 @@ Example skipped response:
 {
   "success": false,
   "to": null,
-  "subject": "Welcome to Superplane, username",
+  "subject": "Superplane issues matched to your skills, username",
   "skipped": true,
   "detail": "No public recipient email was found, or the recipient expression did not resolve."
 }
@@ -305,6 +316,7 @@ The app first uses structured GitHub API data:
 - recently updated repositories, currently up to 50 owner repositories
 - repository language, topics, stars, forks, homepage, fork/archive state, and update timestamps
 - open issues from the starred repository
+- issue number, labels, activity, discussion count, and assignment status
 
 It then enriches that data by scraping public GitHub pages:
 
@@ -321,7 +333,9 @@ The scraper looks for:
 
 Those signals are converted into a structured `analysis` object with primary languages, language distribution, recurring topics, project types, profile strengths, contribution-fit suggestions, notable repositories, evidence, activity summary, and data quality.
 
-That structured analysis is passed into OpenRouter and is also used by the deterministic fallback template. If OpenRouter fails or is not configured, StarStarter still uses the profile analysis to produce a more relevant email.
+StarStarter then ranks up to 100 current open issues from the starred repository against the developer's demonstrated languages, topics, and project types. It also considers maintainer signals such as `good first issue` and `help wanted`, recent activity, and whether an issue is already assigned. The five highest-ranked issues are returned as `recommended_issues`, including a fit score and plain-language reasons.
+
+The generated email shows the top three real issue titles and links from GitHub. OpenRouter may personalize the profile observation and starter path, but it cannot invent or replace issue recommendations. If OpenRouter fails or is not configured, the deterministic fallback uses the same ranked issues and profile evidence.
 
 ## Troubleshooting
 

@@ -37,10 +37,18 @@ class GitHubRepository(BaseModel):
 
 
 class RepositoryIssue(BaseModel):
+    number: int | None = None
     title: str
     html_url: str
     labels: list[str] = Field(default_factory=list)
     body: str | None = None
+    comments: int = 0
+    assignees_count: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+    fit_score: int = 0
+    fit_reasons: list[str] = Field(default_factory=list)
+    matched_skills: list[str] = Field(default_factory=list)
 
 
 class GitHubProfileAnalysis(BaseModel):
@@ -75,6 +83,7 @@ class WebhookProcessingResponse(BaseModel):
     subject: str | None = None
     body: str | None = None
     analysis: GitHubProfileAnalysis | None = None
+    recommended_issues: list[RepositoryIssue] = Field(default_factory=list)
     email_send_skipped: bool = False
     detail: str | None = None
 

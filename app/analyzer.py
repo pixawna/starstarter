@@ -19,7 +19,7 @@ class OnboardingEmailGenerator:
 
     @staticmethod
     def generate_subject(github_username: str) -> str:
-        return f"Welcome to Superplane, {github_username} 👋"
+        return f"Superplane issues matched to your skills, {github_username}"
 
     async def generate_email(self, scrape_result: GitHubScrapeResult, repository_full_name: str) -> str:
         llm_payload = await self._generate_llm_payload(scrape_result, repository_full_name)
@@ -97,9 +97,11 @@ class OnboardingEmailGenerator:
             )
 
         issue_lines = []
-        for issue in scrape_result.candidate_issues[:8]:
+        for issue in scrape_result.candidate_issues[:5]:
             issue_lines.append(
-                f"- {issue.title} | labels={', '.join(issue.labels) or 'none'} | url={issue.html_url}"
+                f"- #{issue.number or '?'} {issue.title} | fit_score={issue.fit_score} | "
+                f"fit_reasons={'; '.join(issue.fit_reasons)} | labels={', '.join(issue.labels) or 'none'} | "
+                f"url={issue.html_url} | body={(issue.body or 'n/a')[:500]}"
             )
 
         return dedent(
@@ -146,9 +148,6 @@ class OnboardingEmailGenerator:
             Return JSON with exactly this shape:
             {{
               "observation": "One warm sentence that references 2-3 specific public themes from the user's profile, not just a language.",
-              "frontend": ["bullet 1", "bullet 2", "bullet 3"],
-              "documentation": ["bullet 1", "bullet 2", "bullet 3"],
-              "beginner": ["bullet 1", "bullet 2", "bullet 3"],
               "starter_path": "One short path sentence tailored to the person."
             }}
 
@@ -156,17 +155,14 @@ class OnboardingEmailGenerator:
             - Mention only publicly visible information.
             - Be specific and human.
             - Avoid generic wording like "based on your interest in TypeScript" unless there are no richer signals.
-            - The three bullet groups should feel tailored to the user's actual projects, README, and profile signals.
-            - Keep each bullet under 14 words.
+            - Do not invent, rename, or recommend issues; ranked issues are rendered separately from GitHub data.
+            - Explain the connection between their demonstrated work and the top-ranked issue.
             """
         ).strip()
 
     def _fallback_payload(self, scrape_result: GitHubScrapeResult) -> dict[str, Any]:
         return {
             "observation": self._build_observation(scrape_result),
-            "frontend": self._frontend_lines(scrape_result),
-            "documentation": self._docs_lines(scrape_result),
-            "beginner": self._beginner_lines(scrape_result),
             "starter_path": self._starter_path(scrape_result),
         }
 
@@ -265,100 +261,18 @@ class OnboardingEmailGenerator:
             )
         ).lower()
 
-    def _frontend_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
-        corpus = self._interest_corpus(scrape_result)
-        top_language = (self._pick_top_language(scrape_result) or "").lower()
-        if any("frontend" in fit.lower() or "ui" in fit.lower() for fit in scrape_result.analysis.contribution_fit):
-            return [
-                "Improve workflow UI states around runs and approvals",
-                "Polish contributor-facing screens with clearer defaults",
-                "Tighten reusable frontend components for workflow setup",
-            ]
-        if any(keyword in corpus for keyword in ("design", "ui", "ux", "frontend", "react", "next.js", "component")):
-            return [
-                "Refine dashboard flows with clearer interaction states",
-                "Polish contributor-facing UI patterns and reusable components",
-                "Improve onboarding screens with more intentional visual guidance",
-            ]
-        if any(keyword in corpus for keyword in ("community", "portfolio", "personal brand", "showcase")):
-            return [
-                "Improve first-impression UI around the dashboard and workflow canvas",
-                "Tighten small product details that make the app easier to explore",
-                "Polish contributor cards, empty states, and discovery surfaces",
-            ]
-        if top_language in {"typescript", "javascript"}:
-            return [
-                "Strengthen TypeScript-driven UI flows across the dashboard",
-                "Improve reusable frontend components and developer ergonomics",
-                "Tighten onboarding and empty-state experiences for new users",
-            ]
-        return [
-            "Improve dashboard components",
-            "Polish contributor cards",
-            "Improve empty states and onboarding screens",
-        ]
-
-    def _docs_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
-        corpus = self._interest_corpus(scrape_result)
-        if any("documentation" in fit.lower() or "examples" in fit.lower() for fit in scrape_result.analysis.contribution_fit):
-            return [
-                "Add focused examples for real workflow automation scenarios",
-                "Improve first-run docs with clearer environment setup",
-                "Document small contribution paths by skill area",
-            ]
-        if any(keyword in corpus for keyword in ("documentation", "docs", "guide", "tutorial", "community", "teaching", "learning", "mentoring")):
-            return [
-                "Add clearer setup walkthroughs with annotated screenshots",
-                "Improve first-contributor docs for local workflow setup",
-                "Create practical examples that explain workflows step by step",
-            ]
-        if any(keyword in corpus for keyword in ("portfolio", "content", "blog", "readme")):
-            return [
-                "Improve contributor docs with cleaner examples and context",
-                "Add setup screenshots that reduce first-run confusion",
-                "Make onboarding docs easier to skim and act on",
-            ]
-        return [
-            "Add setup screenshots",
-            "Improve local development docs",
-            "Create beginner-friendly examples",
-        ]
-
-    def _beginner_lines(self, scrape_result: GitHubScrapeResult) -> list[str]:
-        corpus = self._interest_corpus(scrape_result)
-        if scrape_result.analysis.contribution_fit:
-            return [
-                f"Start with {scrape_result.analysis.contribution_fit[0].lower()}",
-                "Pick a contained issue with a clear before-and-after",
-                "Use docs or tests to validate the first change",
-            ]
-        if any(keyword in corpus for keyword in ("automation", "workflow", "bot", "scraping", "agent", "integration")):
-            return [
-                "Improve workflow labels, helper text, and run-state messaging",
-                "Tighten contributor-facing feedback around automation edges",
-                "Start with low-risk workflow polish while learning the system",
-            ]
-        if any(keyword in corpus for keyword in ("python", "backend", "api", "fastapi", "server")):
-            return [
-                "Improve small API-facing error messages and responses",
-                "Fix onboarding gaps that help contributors run things locally",
-                "Pick low-risk product polish issues while learning the workflow model",
-            ]
-        if any(keyword in corpus for keyword in ("community", "opensource", "hacktoberfest", "contributor")):
-            return [
-                "Start with README, docs, or issue-label polish",
-                "Improve first-contribution guidance and small UX rough edges",
-                "Tackle low-risk fixes that help new contributors feel confident",
-            ]
-        return [
-            "Fix typos in README or docs",
-            "Improve error messages",
-            "Add small UI improvements",
-        ]
-
     def _starter_path(self, scrape_result: GitHubScrapeResult) -> str:
         corpus = self._interest_corpus(scrape_result)
         analysis = scrape_result.analysis
+        if scrape_result.candidate_issues:
+            issue = scrape_result.candidate_issues[0]
+            issue_reference = f"issue #{issue.number}" if issue.number else "the top recommended issue"
+            if issue.matched_skills:
+                return (
+                    f"Start with {issue_reference}: its {issue.matched_skills[0]} focus is the closest match "
+                    "to the skills visible in your public work."
+                )
+            return f"Start with {issue_reference}, reproduce the behavior locally, and confirm scope with a maintainer before coding."
         if analysis.contribution_fit and analysis.notable_repositories:
             return (
                 f"Start by mapping your experience from {analysis.notable_repositories[0]} to "
@@ -375,11 +289,15 @@ class OnboardingEmailGenerator:
     def _render_html_email(self, scrape_result: GitHubScrapeResult, payload: dict[str, Any]) -> str:
         profile = scrape_result.profile
         observation = escape(str(payload.get("observation") or self._build_observation(scrape_result)))
-        frontend = self._normalize_three(payload.get("frontend"), self._frontend_lines(scrape_result))
-        documentation = self._normalize_three(payload.get("documentation"), self._docs_lines(scrape_result))
-        beginner = self._normalize_three(payload.get("beginner"), self._beginner_lines(scrape_result))
         starter_path = escape(str(payload.get("starter_path") or self._starter_path(scrape_result)))
         highlight_clues = self._highlight_clues(scrape_result)
+        analysis = scrape_result.analysis
+        issue_cards = self._issue_cards(scrape_result)
+
+        language_summary = ", ".join(analysis.primary_languages[:4]) or "Not enough public data"
+        project_summary = ", ".join(analysis.project_types[:3]) or "General open-source work"
+        repo_count = len(scrape_result.repositories)
+        activity_summary = analysis.activity_summary or "Not enough public activity data"
 
         clue_html = ""
         if highlight_clues:
@@ -415,17 +333,24 @@ class OnboardingEmailGenerator:
 
           {f'<div style="margin:0 0 10px;">{clue_html}</div>' if clue_html else ''}
 
-          <h2 style="margin:26px 0 16px;font-size:22px;line-height:1.3;color:#0f172a;">Where you might enjoy contributing</h2>
+          <h2 style="margin:26px 0 16px;font-size:22px;line-height:1.3;color:#0f172a;">What your public GitHub shows</h2>
+          <div style="margin:0 0 22px;padding:20px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;">
+            <div style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#334155;"><strong style="color:#0f172a;">Languages:</strong> {escape(language_summary)}</div>
+            <div style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#334155;"><strong style="color:#0f172a;">Project strengths:</strong> {escape(project_summary)}</div>
+            <div style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#334155;"><strong style="color:#0f172a;">Profile metrics:</strong> {profile.public_repos} public repos · {profile.followers} followers</div>
+            <div style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#334155;"><strong style="color:#0f172a;">Activity:</strong> {escape(activity_summary)}</div>
+            <div style="margin:0;font-size:15px;line-height:1.6;color:#334155;"><strong style="color:#0f172a;">Repos analyzed:</strong> {repo_count} <span style="color:#64748b;">(data quality: {escape(analysis.data_quality)})</span></div>
+          </div>
 
-          {self._section_card("1. Frontend / UI", frontend)}
-          {self._section_card("2. Documentation", documentation)}
-          {self._section_card("3. Beginner-friendly issues", beginner)}
+          <h2 style="margin:26px 0 8px;font-size:22px;line-height:1.3;color:#0f172a;">Superplane issues matched to your skills</h2>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#64748b;">These are live open issues ranked from the public Superplane issue tracker. Fit is based on your public repositories, languages, topics, and project types.</p>
+          {issue_cards}
 
           <h2 style="margin:28px 0 14px;font-size:22px;line-height:1.3;color:#0f172a;">Recommended first steps</h2>
           <ol style="margin:0 0 20px 22px;padding:0;color:#23364d;font-size:15px;line-height:1.9;">
             <li><a href="https://github.com/superplanehq/superplane" style="color:#155eef;text-decoration:none;">Explore the repository</a></li>
             <li><a href="https://github.com/superplanehq/superplane/blob/main/CONTRIBUTING.md" style="color:#155eef;text-decoration:none;">Read the contribution guide</a></li>
-            <li><a href="https://github.com/superplanehq/superplane/issues" style="color:#155eef;text-decoration:none;">Pick a good first issue</a></li>
+            <li>Open the best-matched issue above and read its latest discussion</li>
             <li>Comment on the issue: <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#0f172a;">“I'd like to work on this.”</span></li>
             <li><a href="https://community-coral-nu.vercel.app" style="color:#155eef;text-decoration:none;">Join the community learning page</a></li>
           </ol>
@@ -465,27 +390,34 @@ class OnboardingEmailGenerator:
 """
 
     @staticmethod
-    def _section_card(title: str, items: list[str]) -> str:
-        bullet_items = "".join(
-            f'<li style="margin:0 0 10px;">{escape(item)}</li>'
-            for item in items[:3]
-        )
-        return f"""
-        <div style="margin:0 0 16px;padding:20px;border-radius:18px;background:#ffffff;border:1px solid #e5edf5;">
-          <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:12px;">{escape(title)}</div>
-          <ul style="margin:0;padding-left:20px;color:#334155;font-size:15px;line-height:1.75;">
-            {bullet_items}
-          </ul>
-        </div>
-        """
+    def _issue_cards(scrape_result: GitHubScrapeResult) -> str:
+        if not scrape_result.candidate_issues:
+            return """
+            <div style="margin:0 0 16px;padding:20px;border-radius:18px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:15px;line-height:1.7;">
+              We could not load open issues during this run. Browse the <a href="https://github.com/superplanehq/superplane/issues" style="color:#9a3412;">live issue tracker</a> before choosing work.
+            </div>
+            """
 
-    @staticmethod
-    def _normalize_three(value: Any, fallback: list[str]) -> list[str]:
-        if isinstance(value, list):
-            cleaned = [str(item).strip() for item in value if str(item).strip()]
-            if len(cleaned) >= 3:
-                return cleaned[:3]
-        return fallback[:3]
+        cards = []
+        for index, issue in enumerate(scrape_result.candidate_issues[:3], start=1):
+            number = f"#{issue.number} " if issue.number else ""
+            labels = "".join(
+                f'<span style="display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:12px;">{escape(label)}</span>'
+                for label in issue.labels[:4]
+            )
+            reasons = "".join(f"<li>{escape(reason)}</li>" for reason in issue.fit_reasons[:3])
+            cards.append(
+                f"""
+                <div style="margin:0 0 14px;padding:20px;border-radius:18px;background:#ffffff;border:1px solid #dce6f2;">
+                  <div style="margin-bottom:7px;font-size:12px;font-weight:700;text-transform:uppercase;color:#155eef;">Match {index} · Fit score {issue.fit_score}/100</div>
+                  <a href="{escape(issue.html_url, quote=True)}" style="display:block;margin-bottom:10px;color:#0f172a;text-decoration:none;font-size:17px;line-height:1.45;font-weight:700;">{escape(number + issue.title)}</a>
+                  {f'<div style="margin-bottom:8px;">{labels}</div>' if labels else ''}
+                  <div style="margin:0 0 4px;color:#334155;font-size:13px;font-weight:700;">Why this fits you</div>
+                  <ul style="margin:0;padding-left:20px;color:#475569;font-size:14px;line-height:1.7;">{reasons}</ul>
+                </div>
+                """
+            )
+        return "".join(cards)
 
     @staticmethod
     def _pick_top_language(scrape_result: GitHubScrapeResult) -> str | None:

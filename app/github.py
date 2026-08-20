@@ -14,6 +14,7 @@ from app.models import (
     GitHubUserProfile,
     RepositoryIssue,
 )
+from app.issue_matcher import rank_issues_for_profile
 from app.profile_analysis import analyze_github_profile
 from app.scrapy_profile_scraper import ScrapyGitHubProfileScraper
 
@@ -81,7 +82,7 @@ class GitHubClient:
                 self._get_json(
                     client,
                     f"/repos/{target_repository_full_name}/issues",
-                    params={"state": "open", "per_page": 10},
+                    params={"state": "open", "per_page": 100, "sort": "updated", "direction": "desc"},
                 ),
                 self._get_optional_profile_readme(client, username),
                 self._email_scraper.find_email(username),
@@ -143,10 +144,15 @@ class GitHubClient:
                 continue
             candidate_issues.append(
                 RepositoryIssue(
+                    number=issue.get("number"),
                     title=issue["title"],
                     html_url=issue["html_url"],
                     labels=[label["name"] for label in issue.get("labels", [])],
                     body=issue.get("body"),
+                    comments=issue.get("comments", 0),
+                    assignees_count=len(issue.get("assignees") or []),
+                    created_at=issue.get("created_at"),
+                    updated_at=issue.get("updated_at"),
                 )
             )
 
@@ -169,14 +175,17 @@ class GitHubClient:
             if repo.get("name") and repo.get("full_name") and repo.get("html_url")
         ]
 
+        analysis = analyze_github_profile(
+            profile=profile,
+            repositories=repositories,
+            pinned_repositories=pinned_repositories,
+        )
+        recommended_issues = rank_issues_for_profile(candidate_issues, analysis)
+
         return GitHubScrapeResult(
             profile=profile,
             repositories=repositories,
-            candidate_issues=candidate_issues,
+            candidate_issues=recommended_issues,
             pinned_repositories=pinned_repositories,
-            analysis=analyze_github_profile(
-                profile=profile,
-                repositories=repositories,
-                pinned_repositories=pinned_repositories,
-            ),
+            analysis=analysis,
         )
